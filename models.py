@@ -4,6 +4,52 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from extensions import db, login_manager
 
+
+# Bug 字段字典（前后端共用，前端需在 app.modals.bug.js 维护同样一份）
+BUG_TYPE_LABELS = {
+    'functional': '功能问题',
+    'performance': '性能问题',
+    'api': '接口问题',
+    'security': '安全问题',
+    'ui': 'UI 问题',
+    'compatibility': '兼容性问题',
+    'usability': '易用性问题',
+    'config': '配置问题',
+    'data': '数据问题',
+    'requirement': '需求问题',
+}
+PRIORITY_LABELS = {
+    'critical': '最高',
+    'high': '较高',
+    'normal': '普通',
+    'low': '较低',
+    'lowest': '最低',
+}
+PLATFORM_LABELS = {
+    'server': '服务端',
+    'h5': 'H5',
+    'android': 'Android',
+    'ios': 'IOS',
+    'harmony': '鸿蒙',
+    'pc_web': 'PCWeb端',
+}
+DISCOVERY_PHASE_LABELS = {
+    'smoke': '冒烟测试',
+    'round_1': '第一轮测试',
+    'round_2': '第二轮测试',
+    'regression': '回归测试',
+    'acceptance': '验收阶段',
+    'integration': '组件（服务）集成测试阶段',
+    'gray': '灰度阶段',
+    'production': '线上阶段',
+}
+DISCOVERY_CHANNEL_LABELS = {
+    'user_feedback': '用户反馈',
+    'monitoring': '监控工具',
+    'log': '日志',
+    'sprint': '迭代发现',
+}
+
 # Association Table for Organization Members
 organization_members = db.Table('organization_members',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
@@ -134,6 +180,8 @@ class Sprint(db.Model):
     description = db.Column(db.Text)
     goal = db.Column(db.Text)
     category = db.Column(db.String(50)) # e.g., 'Product', 'Tech'
+    code_prefix = db.Column(db.String(3), unique=True, nullable=True)
+    next_item_number = db.Column(db.Integer, nullable=True)
     
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'))
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
@@ -190,6 +238,7 @@ class Sprint(db.Model):
             'description': self.description,
             'goal': self.goal,
             'category': self.category,
+            'code_prefix': self.code_prefix,
             'owner_id': self.owner_id,
             'owner_name': self.owner.username if self.owner else None
         }
@@ -204,6 +253,7 @@ class Issue(db.Model):
     status = db.Column(db.String(20), default='todo') # todo, doing, done
     priority = db.Column(db.Integer, default=3) # 1 (High) to 5 (Low)
     time_estimate = db.Column(db.Integer, default=0) # Time estimate in hours
+    item_code = db.Column(db.String(16), nullable=True)
 
     assignee_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'))
@@ -217,6 +267,7 @@ class Issue(db.Model):
         return {
             'id': self.id,
             'title': self.title,
+            'item_code': self.item_code,
             'description': self.description,
             'status': self.status,
             'priority': self.priority,
@@ -399,7 +450,12 @@ class Bug(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
     severity = db.Column(db.Integer, default=3)  # 1 (致命) to 5 (建议)
-    status = db.Column(db.String(20), default='open')  # open, in_progress, resolved, closed, rejected
+    status = db.Column(db.String(20), default='open')  # open, in_progress, fixed, closed (verified), rejected
+    bug_type = db.Column(db.String(32), nullable=False, default='functional')  # 缺陷类型
+    priority = db.Column(db.String(16), nullable=False, default='normal')  # 优先级（与 severity 严重程度正交）
+    platform = db.Column(db.String(32), nullable=False, default='server')  # 缺陷平台
+    discovery_phase = db.Column(db.String(32), nullable=False, default='round_1')  # 发现阶段
+    discovery_channel = db.Column(db.String(32), nullable=True)  # 发现渠道（非必填）
     steps_to_reproduce = db.Column(db.Text, nullable=True)  # 复现步骤
     time_estimate = db.Column(db.Float, default=0)  # 预估工时
     expected_result = db.Column(db.Text, nullable=True)  # 期望结果
@@ -410,6 +466,7 @@ class Bug(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     resolved_at = db.Column(db.DateTime, nullable=True)  # 解决时间
+    item_code = db.Column(db.String(16), nullable=True)
     
     # Foreign keys
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
@@ -431,9 +488,15 @@ class Bug(db.Model):
         return {
             'id': self.id,
             'title': self.title,
+            'item_code': self.item_code,
             'description': self.description,
             'severity': self.severity,
             'status': self.status,
+            'bug_type': self.bug_type,
+            'priority': self.priority,
+            'platform': self.platform,
+            'discovery_phase': self.discovery_phase,
+            'discovery_channel': self.discovery_channel,
             'steps_to_reproduce': self.steps_to_reproduce,
             'expected_result': self.expected_result,
             'actual_result': self.actual_result,

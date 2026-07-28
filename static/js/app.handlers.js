@@ -1,6 +1,19 @@
 (function () {
     const MiniAgile = window.MiniAgile = window.MiniAgile || {};
 
+    function getSubmitButton(event) {
+        if (event.submitter) return event.submitter;
+
+        const nestedButton = event.target?.querySelector?.('button[type="submit"]');
+        if (nestedButton) return nestedButton;
+
+        const formId = event.target?.id;
+        if (formId && typeof document !== 'undefined') {
+            return document.querySelector(`button[type="submit"][form="${formId}"]`);
+        }
+        return null;
+    }
+
     MiniAgile.handlers = {
         // --- Handlers ---
         async handlersLogin(e) {
@@ -308,6 +321,40 @@
             }
         },
 
+        async handlersUpdateBoardSprintRequirements(e, projectId, sprintId) {
+            e.preventDefault();
+            const btn = getSubmitButton(e);
+            if (!btn) return;
+
+            const removedBoundRequirements = Array.from(e.target.querySelectorAll(
+                'input[name="requirement_ids"][data-originally-bound="true"]'
+            )).filter(input => !input.checked);
+            if (removedBoundRequirements.length > 0 && !confirm(
+                `取消绑定后，对应的 ${removedBoundRequirements.length} 个需求下属于当前迭代的任务及工时将被删除，此操作不可撤销。确定继续吗？`
+            )) {
+                return;
+            }
+
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>保存中...';
+
+            const requirementIds = new FormData(e.target).getAll('requirement_ids').map(Number);
+            const res = await this.api(`/sprints/${sprintId}/requirements`, 'PUT', {
+                requirement_ids: requirementIds,
+                delete_unbound_tasks: removedBoundRequirements.length > 0
+            });
+            if (res && !res.error) {
+                this.modals.close();
+                this.showToast('需求绑定已更新');
+                this.navigate('board', { id: projectId, sprintId });
+            } else {
+                alert(res?.error || '更新需求绑定失败，请重试');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        },
+
         async handlersSubmitSprintWorkLog(e, sprintId) {
             e.preventDefault();
             const btn = e.target.querySelector('button[type="submit"]');
@@ -438,10 +485,12 @@
 
         async handlersUpdateIssue(e, issueId) {
             e.preventDefault();
-            const btn = e.target.querySelector('button[type="submit"]');
-            const originalText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>保存中...';
+            const btn = getSubmitButton(e);
+            const originalText = btn?.innerHTML || '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>保存中...';
+            }
 
             const form = Object.fromEntries(new FormData(e.target));
             // 处理 requirement_id 空值
@@ -466,8 +515,10 @@
                 }
             } else {
                 alert(res?.error || '更新任务失败，请重试');
-                btn.disabled = false;
-                btn.innerHTML = originalText;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
             }
         },
 
@@ -549,7 +600,7 @@
         },
 
         async handlersDeleteRequirement(reqId, projectId) {
-            if (!confirm('确定要删除这个需求吗？此操作不可撤销。')) {
+            if (!confirm('确定要删除这个需求吗？需求内的任务及任务工时也会被删除，此操作不可撤销。')) {
                 return;
             }
 
@@ -559,6 +610,49 @@
                 this.navigate('requirements', { id: projectId });
             } else {
                 alert(res?.error || '删除需求失败，请重试');
+            }
+        },
+
+        async handlersBatchDeleteRequirements(projectId) {
+            const requirementIds = this.getSelectedRequirementIds();
+            if (requirementIds.length === 0) return;
+            if (!confirm(`确定删除选中的 ${requirementIds.length} 个需求吗？需求内的任务及任务工时也会被删除，此操作不可撤销。`)) {
+                return;
+            }
+            const res = await this.api(
+                `/projects/${projectId}/requirements/batch-delete`,
+                'POST',
+                { requirement_ids: requirementIds }
+            );
+            if (res && res.success) {
+                this.showToast(`已删除 ${res.deleted_count} 个需求`);
+                this.navigate('requirements', { id: projectId });
+            } else {
+                alert(res?.error || '批量删除需求失败，请重试');
+            }
+        },
+
+        async handlersBatchBindRequirements(e, projectId, requirementIds) {
+            e.preventDefault();
+            const btn = getSubmitButton(e);
+            if (!btn) return;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>绑定中...';
+            const sprintId = Number(new FormData(e.target).get('sprint_id'));
+            const res = await this.api(
+                `/projects/${projectId}/requirements/batch-bind-sprint`,
+                'POST',
+                { requirement_ids: requirementIds, sprint_id: sprintId }
+            );
+            if (res && res.success) {
+                this.modals.close();
+                this.showToast(`已将 ${res.updated_count} 个需求绑定到“${res.sprint.name}”`);
+                this.navigate('requirements', { id: projectId });
+            } else {
+                alert(res?.error || '批量绑定迭代失败，请重试');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         },
 
@@ -652,6 +746,11 @@
                 description: form.description,
                 severity: parseInt(form.severity, 10) || 3,
                 status: form.status,
+                bug_type: form.bug_type,
+                priority: form.priority,
+                platform: form.platform,
+                discovery_phase: form.discovery_phase,
+                discovery_channel: form.discovery_channel || null,
                 steps_to_reproduce: form.steps_to_reproduce,
                 assignee_id: form.assignee_id,
                 sprint_id: form.sprint_id,
@@ -679,7 +778,14 @@
                     }
                 }
                 this.modals.close();
-                this.navigate('bugs', { id: projectId });
+                if (this.currentView === 'board') {
+                    this.navigate('board', {
+                        id: projectId,
+                        ...(this.currentSprintId ? { sprintId: this.currentSprintId } : {})
+                    });
+                } else {
+                    this.navigate('bugs', { id: projectId });
+                }
             } else {
                 alert(res?.error || '创建缺陷失败，请重试');
                 btn.disabled = false;
@@ -689,10 +795,12 @@
 
         async handlersUpdateBug(e, bugId) {
             e.preventDefault();
-            const btn = e.target.querySelector('button[type="submit"]');
-            const originalText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>更新中...';
+            const btn = getSubmitButton(e);
+            const originalText = btn?.innerHTML || '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>更新中...';
+            }
 
             const formData = new FormData(e.target);
             const assigneeRaw = formData.get('assignee_id');
@@ -704,6 +812,11 @@
                 description: formData.get('description'),
                 severity: parseInt(formData.get('severity'), 10) || 3,
                 status: formData.get('status'),
+                bug_type: formData.get('bug_type'),
+                priority: formData.get('priority'),
+                platform: formData.get('platform'),
+                discovery_phase: formData.get('discovery_phase'),
+                discovery_channel: formData.get('discovery_channel') || null,
                 steps_to_reproduce: formData.get('steps_to_reproduce'),
                 time_estimate: parseFloat(formData.get('time_estimate')) || 0,
                 assignee_id: assigneeRaw === '' || assigneeRaw == null ? null : assigneeRaw,
@@ -720,8 +833,10 @@
 
             if (!res || res.error) {
                 alert(res?.error || '更新缺陷失败');
-                btn.disabled = false;
-                btn.innerHTML = originalText;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
                 return;
             }
 
@@ -735,8 +850,10 @@
                 if (!evidenceRes || evidenceRes.error) {
                     const detail = evidenceRes?.error ? `（${evidenceRes.error}）` : '';
                     alert(`缺陷已保存，但证据提交失败，请稍后补充${detail}`);
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    }
                     return;
                 }
             }
@@ -791,10 +908,12 @@
 
         async handlersSubmitBugEvidence(e, bugId) {
             e.preventDefault();
-            const btn = e.target.querySelector('button[type="submit"]');
-            const originalText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>提交中...';
+            const btn = getSubmitButton(e);
+            const originalText = btn?.innerHTML || '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>提交中...';
+            }
 
             const formData = new FormData(e.target);
             const res = await this.api(`/bugs/${bugId}/evidences`, 'POST', formData);
@@ -803,8 +922,10 @@
                 this.modals.viewBug(bugId);
             } else {
                 alert(res?.error || '补充证据失败，请重试');
-                btn.disabled = false;
-                btn.innerHTML = originalText;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
             }
         },
 

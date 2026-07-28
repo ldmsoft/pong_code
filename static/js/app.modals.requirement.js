@@ -226,4 +226,64 @@
             `);
         };
 
+        MiniAgile.modals.modalBatchBindRequirementSprint = async function(projectId, requirementIds) {
+            const projectData = await this.api(`/projects/${projectId}`);
+            if (projectData?.error) {
+                alert('加载迭代列表失败');
+                return;
+            }
+            const sprints = projectData?.sprints || [];
+            const formId = `batch-bind-requirements-form-${projectId}`;
+            const footerStyle = 'flex:0 0 auto; padding:0.875rem 1.5rem; background:rgba(255,255,255,0.98); box-shadow:0 -1px 0 rgba(148,163,184,0.22), 0 -8px 24px rgba(15,23,42,0.05);';
+            const footerHtml = sprints.length === 0 ? `
+                <div data-testid="requirement-batch-bind-footer" style="${footerStyle}" class="flex justify-end">
+                    <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">关闭</button>
+                </div>
+            ` : `
+                <div data-testid="requirement-batch-bind-footer" style="${footerStyle}" class="flex justify-end gap-3">
+                    <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">取消</button>
+                    <button type="submit" form="${formId}" data-testid="requirement-batch-bind-submit" class="px-5 py-2.5 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors">
+                        <i class="fa-solid fa-link mr-1.5"></i>确认绑定
+                    </button>
+                </div>
+            `;
+
+            this.modalShow(`
+                <div data-testid="requirement-batch-bind-heading" style="padding:1.5rem 1.5rem 1rem" class="shrink-0 border-b border-gray-100 bg-white">
+                    <h3 class="text-xl font-bold text-gray-900 mb-2">批量绑定迭代</h3>
+                    <p class="text-sm text-gray-500">将已选择的 ${requirementIds.length} 个需求绑定到一个迭代</p>
+                </div>
+                ${sprints.length === 0 ? `
+                    <div class="flex-1 min-h-0 overflow-y-auto p-6">
+                        <div class="border border-dashed border-gray-300 rounded-lg p-8 text-center text-sm text-gray-500">
+                            当前项目暂无迭代
+                        </div>
+                    </div>
+                ` : `
+                    <form id="${formId}" onsubmit='app.handlers.batchBindRequirements(event, ${projectId}, ${JSON.stringify(requirementIds)})' class="flex min-h-0 flex-col">
+                        <div data-testid="requirement-batch-bind-list" class="max-h-80 min-h-0 overflow-y-auto p-6" role="radiogroup" aria-label="选择迭代">
+                            <div class="space-y-3">
+                                ${sprints.map((sprint, index) => `
+                                    <label class="flex items-center gap-3 border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-colors">
+                                        <input type="radio" name="sprint_id" value="${sprint.id}" ${index === 0 ? 'checked' : ''} class="w-4 h-4 shrink-0 text-purple-600 focus:ring-purple-500">
+                                        <span class="min-w-0">
+                                            <span class="block text-sm font-semibold text-gray-900">${sprint.name}</span>
+                                            <span class="block text-xs text-gray-500 mt-1">${sprint.start_date || '未设置开始时间'} 至 ${sprint.end_date || '未设置结束时间'}</span>
+                                        </span>
+                                    </label>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </form>
+                `}
+            `, {
+                contentClass: 'w-full',
+                contentStyle: 'width:min(94vw, 36rem); max-width:min(94vw, 36rem); max-height:80vh; overflow:hidden',
+                frameStyle: 'max-height:80vh; min-height:0; display:flex; flex-direction:column; overflow:hidden',
+                bodyClass: 'flex flex-1 min-h-0 flex-col',
+                bodyStyle: 'padding:0; overflow:hidden',
+                footerHtml
+            });
+        };
+
 })();

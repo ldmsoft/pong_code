@@ -27,14 +27,16 @@
         const statusLabels = {
             'open': '待处理',
             'in_progress': '处理中',
-            'resolved': '已解决',
-            'closed': '已关闭',
+            'fixed': '已修复',
+            'resolved': '已修复',
+            'closed': '已验证',
             'rejected': '已拒绝'
         };
 
         const statusColors = {
             'open': 'bg-red-100 text-red-700 border-red-300',
             'in_progress': 'bg-purple-100 text-purple-700 border-purple-300',
+            'fixed': 'bg-blue-100 text-blue-700 border-blue-300',
             'resolved': 'bg-blue-100 text-blue-700 border-blue-300',
             'closed': 'bg-emerald-100 text-emerald-700 border-emerald-300',
             'rejected': 'bg-gray-100 text-gray-700 border-gray-300'
@@ -54,6 +56,26 @@
             3: 'bg-yellow-100 text-yellow-700 border-yellow-300',
             4: 'bg-blue-100 text-blue-700 border-blue-300',
             5: 'bg-gray-100 text-gray-700 border-gray-300'
+        };
+
+        const bugTypeLabels = {
+            functional: '功能问题', performance: '性能问题', api: '接口问题',
+            security: '安全问题', ui: 'UI 问题', compatibility: '兼容性问题',
+            usability: '易用性问题', config: '配置问题', data: '数据问题', requirement: '需求问题',
+        };
+        const priorityLabels = {
+            critical: '最高', high: '较高', normal: '普通', low: '较低', lowest: '最低',
+        };
+        const platformLabels = {
+            server: '服务端', h5: 'H5', android: 'Android', ios: 'IOS', harmony: '鸿蒙', pc_web: 'PCWeb端',
+        };
+        const discoveryPhaseLabels = {
+            smoke: '冒烟测试', round_1: '第一轮测试', round_2: '第二轮测试',
+            regression: '回归测试', acceptance: '验收阶段', integration: '组件（服务）集成测试阶段',
+            gray: '灰度阶段', production: '线上阶段',
+        };
+        const discoveryChannelLabels = {
+            user_feedback: '用户反馈', monitoring: '监控工具', log: '日志', sprint: '迭代发现',
         };
 
         this.setMain(`
@@ -77,7 +99,7 @@
 
                 <!-- Stats Cards -->
                 ${stats && !stats.error ? `
-                <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
                     <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
                         <div class="flex items-center justify-between">
                             <div>
@@ -114,8 +136,8 @@
                     <div class="bg-white rounded-xl border border-blue-200 p-5 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-blue-50 to-white">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-sm font-medium text-blue-600">已解决</p>
-                                <p class="text-2xl font-bold text-blue-700 mt-1">${stats.resolved}</p>
+                                <p class="text-sm font-medium text-blue-600">已修复</p>
+                                <p class="text-2xl font-bold text-blue-700 mt-1">${stats.fixed}</p>
                             </div>
                             <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
                                 <i class="fa-solid fa-check-circle text-blue-600 text-lg"></i>
@@ -125,7 +147,7 @@
                     <div class="bg-white rounded-xl border border-emerald-200 p-5 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-emerald-50 to-white">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-sm font-medium text-emerald-600">已关闭</p>
+                                <p class="text-sm font-medium text-emerald-600">已验证</p>
                                 <p class="text-2xl font-bold text-emerald-700 mt-1">${stats.closed}</p>
                             </div>
                             <div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -160,8 +182,8 @@
                             <option value="">全部状态</option>
                             <option value="open">待处理</option>
                             <option value="in_progress">处理中</option>
-                            <option value="resolved">已解决</option>
-                            <option value="closed">已关闭</option>
+                            <option value="fixed">已修复</option>
+                            <option value="closed">已验证</option>
                             <option value="rejected">已拒绝</option>
                         </select>
                         <select id="bug-severity-filter" class="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all">
@@ -193,25 +215,30 @@
                         </div>
                     ` : bugs.map(bug => `
                         <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group" onclick="app.modals.viewBug(${bug.id})">
-                            <div class="flex items-start justify-between gap-4">
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-3 mb-2">
-                                        <h3 class="text-lg font-semibold text-gray-900 group-hover:text-red-700 transition-colors">${bug.title}</h3>
+                            <div class="flex items-start justify-between gap-4 min-w-0">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex flex-wrap items-center gap-3 mb-2 min-w-0">
+                                        <h3 style="overflow-wrap:anywhere; word-break:break-word;" class="min-w-0 text-lg font-semibold text-gray-900 group-hover:text-red-700 transition-colors">${bug.item_code ? `<span class="mr-2 text-red-600">${bug.item_code}</span>` : ''}${bug.title}</h3>
                                         <span class="px-2.5 py-1 text-xs font-semibold rounded-full border ${severityColors[bug.severity]}">${severityLabels[bug.severity]}</span>
                                         <span class="px-2.5 py-1 text-xs font-semibold rounded-full border ${statusColors[bug.status]}">${statusLabels[bug.status]}</span>
                                         ${(bug.evidence_count || 0) > 0 ? `<span class="px-2.5 py-1 text-xs font-semibold rounded-full border border-orange-200 bg-orange-50 text-orange-700"><i class="fa-solid fa-camera mr-1"></i>${bug.evidence_count} 条证据</span>` : ''}
                                     </div>
-                                    <p class="text-sm text-gray-600 mb-3 line-clamp-2">${bug.description}</p>
-                                    <div class="flex items-center gap-4 text-xs text-gray-500">
+                                    <p style="overflow-wrap:anywhere; word-break:break-word;" class="text-sm text-gray-600 mb-3 line-clamp-2">${bug.description}</p>
+                                    <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500 min-w-0">
                                         <span><i class="fa-solid fa-user mr-1"></i>报告者: ${bug.reporter_name || '未知'}</span>
                                         ${bug.assignee_name ? `<span class="text-purple-600"><i class="fa-solid fa-user-gear mr-1"></i>负责人: ${bug.assignee_name}</span>` : '<span class="text-orange-600"><i class="fa-solid fa-user-slash mr-1"></i>未分配</span>'}
                                         <span><i class="fa-solid fa-calendar mr-1"></i>创建于 ${new Date(bug.created_at).toLocaleDateString('zh-CN')}</span>
+                                        <span><i class="fa-solid fa-tag mr-1"></i>类型: ${bugTypeLabels[bug.bug_type] || '-'}</span>
+                                        <span><i class="fa-solid fa-flag mr-1"></i>优先级: ${priorityLabels[bug.priority] || '-'}</span>
+                                        <span><i class="fa-solid fa-desktop mr-1"></i>平台: ${platformLabels[bug.platform] || '-'}</span>
+                                        <span><i class="fa-solid fa-magnifying-glass-chart mr-1"></i>阶段: ${discoveryPhaseLabels[bug.discovery_phase] || '-'}</span>
+                                        ${bug.discovery_channel ? `<span><i class="fa-solid fa-comments mr-1"></i>渠道: ${discoveryChannelLabels[bug.discovery_channel] || bug.discovery_channel}</span>` : ''}
                                         ${bug.latest_stack_trace ? `<span class="text-gray-600"><i class="fa-solid fa-terminal mr-1"></i>含异常堆栈</span>` : ''}
                                         ${bug.sprint_name ? `<span class="text-indigo-600"><i class="fa-solid fa-rotate mr-1"></i>${bug.sprint_name}</span>` : ''}
                                         ${bug.requirement_title ? `<span class="text-blue-600"><i class="fa-solid fa-file-lines mr-1"></i>${bug.requirement_title}</span>` : ''}
                                     </div>
                                 </div>
-                                <div class="flex gap-2">
+                                <div class="flex shrink-0 gap-2">
                                     <button onclick="event.stopPropagation(); app.modals.editBug(${bug.id})" class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-700 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
                                         <i class="fa-solid fa-edit text-sm"></i>
                                     </button>

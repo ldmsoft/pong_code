@@ -55,9 +55,9 @@
             };
 
             this.setMain(`
-                <div class="max-w-7xl mx-auto p-8 space-y-6">
+                <div id="requirements-page" class="max-w-7xl mx-auto p-8 space-y-6">
                     <!-- Header -->
-                    <div class="flex items-center justify-between">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
                         <div>
                             <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
                                 <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
@@ -67,10 +67,17 @@
                             </h1>
                             <p class="mt-2 text-sm text-gray-600">管理和跟踪产品需求</p>
                         </div>
-                        <button type="button" data-testid="create-requirement-button" onclick="app.modals.createRequirement(${projectId})" class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg shadow-purple-500/30 transform hover:scale-105">
-                            <i class="fa-solid fa-plus"></i>
-                            <span>新建需求</span>
-                        </button>
+                        <div class="flex flex-wrap items-center gap-3">
+                            ${requirements.length > 0 ? `
+                            <button type="button" id="requirement-multi-select-button" data-testid="requirement-multi-select-button" onclick="app.toggleRequirementMultiSelect(true)" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors">
+                                <i class="fa-solid fa-check-double"></i>
+                                <span>多选</span>
+                            </button>` : ''}
+                            <button type="button" data-testid="create-requirement-button" onclick="app.modals.createRequirement(${projectId})" class="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition-colors shadow-sm">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>新建需求</span>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Stats Cards -->
@@ -164,6 +171,21 @@
                         </div>
                     </div>
 
+                    <div id="requirement-batch-toolbar" data-testid="requirement-batch-toolbar" class="requirement-batch-toolbar-fixed hidden border-t border-purple-200 px-4 py-3">
+                        <div class="flex flex-col items-stretch justify-between gap-3 md:flex-row md:items-center">
+                            <span class="text-sm font-semibold text-gray-700">已选择 <span id="requirement-selected-count" class="text-purple-700">0</span> 项</span>
+                            <div class="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
+                                <button type="button" onclick="app.toggleRequirementMultiSelect(false)" class="whitespace-nowrap px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">取消</button>
+                                <button type="button" id="requirement-batch-delete-button" data-testid="requirement-batch-delete-button" onclick="app.handlers.batchDeleteRequirements(${projectId})" disabled class="whitespace-nowrap px-3 py-2 text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                                    <i class="fa-solid fa-trash mr-1.5"></i>批量删除
+                                </button>
+                                <button type="button" id="requirement-batch-bind-button" data-testid="requirement-batch-bind-button" onclick="app.openRequirementSprintBinding(${projectId})" disabled class="whitespace-nowrap px-3 py-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                                    <i class="fa-solid fa-link mr-1.5"></i>批量绑定迭代
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Requirements List -->
                     <div id="requirements-list" class="space-y-3">
                         ${requirements.length === 0 ? `
@@ -178,16 +200,19 @@
                                 </button>
                             </div>
                         ` : requirements.map(req => `
-                            <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group" onclick="app.modals.viewRequirement(${req.id})">
+                            <div data-requirement-card data-requirement-id="${req.id}" class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group" onclick="app.handleRequirementCardClick(event, ${req.id})">
                                 <div class="flex items-start justify-between gap-4">
-                                    <div class="flex-1">
-                                        <div class="flex items-center gap-3 mb-2">
-                                            <h3 class="text-lg font-semibold text-gray-900 group-hover:text-purple-700 transition-colors">${req.title}</h3>
+                                    <label data-requirement-selector style="align-self:center" class="hidden shrink-0" onclick="event.stopPropagation()">
+                                        <input type="checkbox" data-requirement-checkbox value="${req.id}" onchange="app.updateRequirementSelection()" class="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500" aria-label="选择需求 ${req.title}">
+                                    </label>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex flex-wrap items-center gap-3 mb-2">
+                                            <h3 class="min-w-0 text-lg font-semibold text-gray-900 group-hover:text-purple-700 transition-colors">${req.title}</h3>
                                             <span class="px-2.5 py-1 text-xs font-semibold rounded-full border ${priorityColors[req.priority]}">${priorityLabels[req.priority]}</span>
                                             <span class="px-2.5 py-1 text-xs font-semibold rounded-full border ${statusColors[req.status]}">${statusLabels[req.status]}</span>
                                         </div>
                                         <p class="text-sm text-gray-600 mb-3 line-clamp-2">${req.content}</p>
-                                        <div class="flex items-center gap-4 text-xs text-gray-500">
+                                        <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500">
                                             <span><i class="fa-solid fa-user mr-1"></i>${req.creator_name || '未知'}</span>
                                             <span><i class="fa-solid fa-calendar mr-1"></i>创建于 ${new Date(req.created_at).toLocaleDateString('zh-CN')}</span>
                                             ${req.expected_delivery_date ? `<span class="text-orange-600 font-medium"><i class="fa-solid fa-flag mr-1"></i>期待交付 ${new Date(req.expected_delivery_date).toLocaleDateString('zh-CN')}</span>` : ''}
@@ -223,6 +248,68 @@
                 const prioritySelect = document.getElementById('req-priority-filter');
                 if (params.priority && prioritySelect) prioritySelect.value = params.priority;
             });
+        };
+
+        MiniAgile.views.toggleRequirementMultiSelect = function(enabled) {
+            const list = document.getElementById('requirements-list');
+            const toolbar = document.getElementById('requirement-batch-toolbar');
+            const page = document.getElementById('requirements-page');
+            if (!list || !toolbar) return;
+            list.dataset.multiSelect = enabled ? 'true' : 'false';
+            toolbar.classList.toggle('hidden', !enabled);
+            document.getElementById('requirement-multi-select-button')?.classList.toggle('hidden', enabled);
+            document.querySelectorAll('[data-requirement-selector]').forEach((selector) => {
+                selector.classList.toggle('hidden', !enabled);
+            });
+            if (!enabled) {
+                document.querySelectorAll('[data-requirement-checkbox]').forEach((checkbox) => {
+                    checkbox.checked = false;
+                });
+            }
+            if (page) {
+                page.style.paddingBottom = enabled ? `${toolbar.offsetHeight + 24}px` : '';
+            }
+            this.updateRequirementSelection();
+        };
+
+        MiniAgile.views.getSelectedRequirementIds = function() {
+            return Array.from(document.querySelectorAll('[data-requirement-checkbox]:checked'))
+                .map((checkbox) => Number(checkbox.value));
+        };
+
+        MiniAgile.views.updateRequirementSelection = function() {
+            const selectedIds = this.getSelectedRequirementIds();
+            const count = document.getElementById('requirement-selected-count');
+            if (count) count.textContent = String(selectedIds.length);
+            ['requirement-batch-delete-button', 'requirement-batch-bind-button'].forEach((id) => {
+                const button = document.getElementById(id);
+                if (button) button.disabled = selectedIds.length === 0;
+            });
+            document.querySelectorAll('[data-requirement-card]').forEach((card) => {
+                const checkbox = card.querySelector('[data-requirement-checkbox]');
+                card.classList.toggle('border-purple-500', Boolean(checkbox?.checked));
+                card.classList.toggle('bg-purple-50', Boolean(checkbox?.checked));
+            });
+        };
+
+        MiniAgile.views.handleRequirementCardClick = function(event, requirementId) {
+            const list = document.getElementById('requirements-list');
+            if (list?.dataset.multiSelect !== 'true') {
+                this.modals.viewRequirement(requirementId);
+                return;
+            }
+            const checkbox = event.currentTarget.querySelector('[data-requirement-checkbox]');
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                this.updateRequirementSelection();
+            }
+        };
+
+        MiniAgile.views.openRequirementSprintBinding = function(projectId) {
+            const requirementIds = this.getSelectedRequirementIds();
+            if (requirementIds.length > 0) {
+                this.modals.batchBindRequirementSprint(projectId, requirementIds);
+            }
         };
 
 })();

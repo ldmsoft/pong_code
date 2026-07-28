@@ -35,6 +35,22 @@
             }
         };
 
+        window.filterBoardRequirementBindings = function(keyword) {
+            const normalized = String(keyword || '').toLowerCase().trim();
+            document.querySelectorAll('[data-board-requirement-item]').forEach((item) => {
+                const searchable = item.getAttribute('data-search') || '';
+                item.style.display = !normalized || searchable.includes(normalized) ? '' : 'none';
+            });
+        };
+
+        window.updateBoardRequirementBindingCount = function() {
+            const count = document.querySelectorAll(
+                '#board-bind-requirements-list input[name="requirement_ids"]:checked'
+            ).length;
+            const countLabel = document.getElementById('board-bind-requirements-count');
+            if (countLabel) countLabel.textContent = `已选 ${count} 个`;
+        };
+
         MiniAgile.modals.modalCreateSprint = async function(projectId) {
             const [users, reqData] = await Promise.all([
                 this.api('/users/search'),
@@ -355,6 +371,77 @@
                     </div>
                 </div>
             `);
+        };
+
+        MiniAgile.modals.modalBindBoardRequirements = async function(projectId, sprintId) {
+            const requirements = await this.api(`/projects/${projectId}/requirements`);
+            if (!Array.isArray(requirements)) {
+                alert(requirements?.error || '加载需求列表失败');
+                return;
+            }
+
+            const currentCount = requirements.filter(requirement => requirement.sprint_id === sprintId).length;
+            const formId = `board-bind-requirements-form-${sprintId}`;
+            const footerStyle = 'flex:0 0 auto; padding:0.875rem 1.5rem; background:rgba(255,255,255,0.98); box-shadow:0 -1px 0 rgba(148,163,184,0.22), 0 -8px 24px rgba(15,23,42,0.05);';
+            const requirementItems = requirements.map((requirement) => {
+                const isCurrent = requirement.sprint_id === sprintId;
+                const isOccupied = Boolean(requirement.sprint_id) && !isCurrent;
+                const title = this.escapeHtml(requirement.title || '未命名需求');
+                const sprintName = this.escapeHtml(requirement.sprint_name || '其他迭代');
+                const searchText = this.escapeHtml(`${requirement.title || ''} ${requirement.content || ''}`.toLowerCase());
+                const stateText = isOccupied
+                    ? `已被“${sprintName}”绑定`
+                    : (isCurrent ? '已绑定当前迭代' : '未绑定迭代');
+                const stateClass = isOccupied
+                    ? 'text-amber-700 bg-amber-50'
+                    : (isCurrent ? 'text-purple-700 bg-purple-50' : 'text-gray-500 bg-gray-100');
+                return `
+                    <label data-board-requirement-item data-search="${searchText}" class="flex items-center gap-3 rounded-lg border p-4 transition-colors ${isOccupied ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-70' : 'border-gray-200 bg-white cursor-pointer hover:border-purple-300 hover:bg-purple-50'}">
+                        <input type="checkbox" name="requirement_ids" value="${requirement.id}" data-originally-bound="${isCurrent}" ${isCurrent ? 'checked' : ''} ${isOccupied ? 'disabled' : ''} onchange="window.updateBoardRequirementBindingCount && window.updateBoardRequirementBindingCount()" class="w-4 h-4 shrink-0 rounded border-gray-300 text-purple-600 focus:ring-purple-500 disabled:cursor-not-allowed">
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-sm font-semibold text-gray-900">${title}</span>
+                            <span class="mt-1 inline-flex rounded px-2 py-0.5 text-xs font-medium ${stateClass}">${stateText}</span>
+                        </span>
+                    </label>
+                `;
+            }).join('');
+
+            this.modalShow(`
+                <div style="padding:1.5rem 1.5rem 1rem" class="shrink-0 border-b border-gray-100 bg-white">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900 mb-1">绑定需求</h3>
+                            <p class="text-sm text-gray-500">选择要在当前迭代看板中显示的需求泳道</p>
+                        </div>
+                        <span id="board-bind-requirements-count" class="shrink-0 text-xs font-semibold text-purple-700">已选 ${currentCount} 个</span>
+                    </div>
+                    <div class="relative mt-4">
+                        <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <input type="text" data-testid="board-bind-requirements-search" placeholder="搜索需求标题或内容..." oninput="window.filterBoardRequirementBindings && window.filterBoardRequirementBindings(this.value)" class="w-full rounded-lg border border-gray-300 py-2.5 pl-9 pr-4 text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-500">
+                    </div>
+                </div>
+                <form id="${formId}" onsubmit="app.handlers.updateBoardSprintRequirements(event, ${projectId}, ${sprintId})" class="min-h-0">
+                    <div id="board-bind-requirements-list" data-testid="board-bind-requirements-list" class="max-h-80 min-h-0 overflow-y-auto p-6">
+                        ${requirements.length > 0 ? `<div class="space-y-3">${requirementItems}</div>` : `
+                            <div class="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">当前项目暂无需求</div>
+                        `}
+                    </div>
+                </form>
+            `, {
+                contentClass: 'w-full',
+                contentStyle: 'width:min(94vw, 38rem); max-width:min(94vw, 38rem); max-height:84vh; overflow:hidden',
+                frameStyle: 'max-height:84vh; min-height:0; display:flex; flex-direction:column; overflow:hidden',
+                bodyClass: 'flex min-h-0 flex-col',
+                bodyStyle: 'padding:0; overflow:hidden',
+                footerHtml: `
+                    <div data-testid="board-bind-requirements-footer" style="${footerStyle}" class="flex justify-end gap-3">
+                        <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">取消</button>
+                        <button type="submit" form="${formId}" data-testid="board-bind-requirements-submit" class="px-5 py-2.5 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors">
+                            <i class="fa-solid fa-save mr-1.5"></i>保存绑定
+                        </button>
+                    </div>
+                `
+            });
         };
 
 })();

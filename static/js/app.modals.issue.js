@@ -2,6 +2,39 @@
     const MiniAgile = window.MiniAgile = window.MiniAgile || {};
     MiniAgile.modals = MiniAgile.modals || {};
 
+    const CARD_ITEM_MODAL_OPTIONS = {
+        contentClass: 'w-full',
+        contentStyle: 'width:min(94vw, 38.4rem); max-width:min(94vw, 38.4rem); height:min(90vh, 56rem); max-height:90vh; overflow:hidden',
+        frameStyle: 'height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden',
+        bodyStyle: 'flex:1 1 auto; min-height:0; overflow-y:auto'
+    };
+
+    const TASK_FIXED_FOOTER_STYLE = 'flex:0 0 auto; padding:0.875rem 1.5rem; background:rgba(255,255,255,0.98); backdrop-filter:blur(8px); box-shadow:0 -1px 0 rgba(148,163,184,0.22), 0 -8px 24px rgba(15,23,42,0.05);';
+
+    function taskEditModalOptions(issue, initialTab = 'details') {
+        return {
+            ...CARD_ITEM_MODAL_OPTIONS,
+            footerHtml: `
+                <div data-testid="edit-issue-fixed-footer" style="${TASK_FIXED_FOOTER_STYLE}" class="flex items-center">
+                    <div id="issue-edit-details-footer" style="display:${initialTab === 'time' ? 'none' : 'flex'}" class="w-full items-center justify-between gap-3">
+                        <button type="button" onclick="app.handlers.deleteIssue(${issue.id}, ${issue.project_id})" class="text-red-600 hover:text-red-800 text-sm font-semibold hover:bg-red-50 px-3 py-2.5 rounded-lg transition-colors">
+                            <i class="fa-solid fa-trash mr-1"></i>删除任务
+                        </button>
+                        <div class="flex items-center gap-3">
+                            <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-sm font-semibold rounded-lg transition-colors">取消</button>
+                            <button type="submit" form="edit-issue-form-${issue.id}" data-testid="edit-issue-save-button" class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-colors">
+                                <i class="fa-solid fa-save mr-2"></i>保存更改
+                            </button>
+                        </div>
+                    </div>
+                    <div id="issue-edit-time-footer" style="display:${initialTab === 'time' ? 'flex' : 'none'}" class="w-full items-center justify-end gap-3">
+                        <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-sm font-semibold rounded-lg transition-colors">关闭</button>
+                    </div>
+                </div>
+            `
+        };
+    }
+
         MiniAgile.modals.modalCreateIssue = async function(projectId, defaultRequirementId = null, sprintId = null) {
             // 获取当前迭代的需求列表（带 sprintId 以匹配当前看板所属迭代）
             const boardData = await this.api(`/projects/${projectId}/board${sprintId ? `?sprint_id=${sprintId}` : ''}`);
@@ -145,13 +178,13 @@
 
                 <!-- Tabs -->
                 <div class="flex border-b border-gray-200 mb-6" id="edit-tabs">
-                    <button onclick="document.getElementById('tab-details').classList.remove('hidden'); document.getElementById('tab-time').classList.add('hidden'); this.classList.add('border-purple-500', 'text-purple-600'); this.classList.remove('text-gray-500', 'border-transparent'); this.nextElementSibling.classList.remove('border-purple-500', 'text-purple-600'); this.nextElementSibling.classList.add('text-gray-500', 'border-transparent');" class="px-4 py-2 text-sm font-medium ${initialTab === 'time' ? 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent' : 'text-purple-600 border-b-2 border-purple-500'} focus:outline-none transition-colors">详情</button>
-                    <button onclick="document.getElementById('tab-time').classList.remove('hidden'); document.getElementById('tab-details').classList.add('hidden'); this.classList.add('border-purple-500', 'text-purple-600'); this.classList.remove('text-gray-500', 'border-transparent'); this.previousElementSibling.classList.remove('border-purple-500', 'text-purple-600'); this.previousElementSibling.classList.add('text-gray-500', 'border-transparent');" class="px-4 py-2 text-sm font-medium ${initialTab === 'time' ? 'text-purple-600 border-b-2 border-purple-500' : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'} focus:outline-none transition-colors">工时</button>
+                    <button onclick="document.getElementById('tab-details').classList.remove('hidden'); document.getElementById('tab-time').classList.add('hidden'); document.getElementById('issue-edit-details-footer').style.display='flex'; document.getElementById('issue-edit-time-footer').style.display='none'; this.classList.add('border-purple-500', 'text-purple-600'); this.classList.remove('text-gray-500', 'border-transparent'); this.nextElementSibling.classList.remove('border-purple-500', 'text-purple-600'); this.nextElementSibling.classList.add('text-gray-500', 'border-transparent');" class="px-4 py-2 text-sm font-medium ${initialTab === 'time' ? 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent' : 'text-purple-600 border-b-2 border-purple-500'} focus:outline-none transition-colors">详情</button>
+                    <button onclick="document.getElementById('tab-time').classList.remove('hidden'); document.getElementById('tab-details').classList.add('hidden'); document.getElementById('issue-edit-details-footer').style.display='none'; document.getElementById('issue-edit-time-footer').style.display='flex'; this.classList.add('border-purple-500', 'text-purple-600'); this.classList.remove('text-gray-500', 'border-transparent'); this.previousElementSibling.classList.remove('border-purple-500', 'text-purple-600'); this.previousElementSibling.classList.add('text-gray-500', 'border-transparent');" class="px-4 py-2 text-sm font-medium ${initialTab === 'time' ? 'text-purple-600 border-b-2 border-purple-500' : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'} focus:outline-none transition-colors">工时</button>
                 </div>
 
                 <!-- Details Tab -->
                 <div id="tab-details" class="${initialTab === 'time' ? 'hidden' : ''}">
-                    <form onsubmit="app.handlers.updateIssue(event, ${i.id})" class="space-y-5">
+                    <form id="edit-issue-form-${i.id}" onsubmit="app.handlers.updateIssue(event, ${i.id})" class="space-y-5">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">任务标题</label>
                             <input name="title" value="${i.title}" class="block w-full rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-0 py-2.5 px-4 text-sm" required>
@@ -195,17 +228,6 @@
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">预估工时 (h)</label>
                                 <input name="time_estimate" type="number" step="0.5" value="${i.time_estimate}" class="block w-full rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-0 py-2.5 px-4 text-sm">
-                            </div>
-                        </div>
-                        <div class="flex justify-between items-center pt-4 border-t border-gray-100">
-                            <button type="button" onclick="app.handlers.deleteIssue(${i.id}, ${i.project_id})" class="text-red-600 hover:text-red-800 text-sm font-semibold hover:bg-red-50 px-3 py-2.5 rounded-lg transition-colors">
-                                <i class="fa-solid fa-trash mr-1"></i>删除任务
-                            </button>
-                            <div class="flex gap-3">
-                                <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 text-gray-700 hover:text-gray-900 text-sm font-semibold hover:bg-gray-100 rounded-lg transition-colors">取消</button>
-                                <button type="submit" data-testid="edit-issue-save-button" class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-purple-500/30 transition-all hover:scale-105">
-                                    <i class="fa-solid fa-save mr-2"></i>保存更改
-                                </button>
                             </div>
                         </div>
                     </form>
@@ -254,7 +276,7 @@
                         </div>
                     </div>
                 </div>
-            `);
+            `, taskEditModalOptions(i, initialTab));
         };
 
 })();

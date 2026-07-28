@@ -10,7 +10,8 @@ from models import (
     Project, Sprint, Issue, Requirement, Bug,
     SprintWorkLog, WorkLog, organization_members,
 )
-from routes.input_utils import parse_nullable_int, parse_float, parse_date
+from routes.input_utils import parse_nullable_int, parse_int, parse_float, parse_date
+from routes.item_codes import generate_sprint_code_prefix
 
 bp = Blueprint('sprints', __name__, url_prefix='/api')
 
@@ -47,6 +48,10 @@ def create_sprint(project_id):
         owner_id = parse_nullable_int(data.get('owner_id'), 'owner_id') or current_user.id
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
+    try:
+        code_prefix = generate_sprint_code_prefix()
+    except RuntimeError as exc:
+        return jsonify({'error': str(exc)}), 503
     sprint = Sprint(
         name=data['name'],
         start_date=start_date,
@@ -56,6 +61,8 @@ def create_sprint(project_id):
         goal=data.get('goal'),
         category=data.get('category'),
         owner_id=owner_id,
+        code_prefix=code_prefix,
+        next_item_number=1,
     )
     db.session.add(sprint)
     db.session.commit()
@@ -171,17 +178,57 @@ def update_sprint_requirements(sprint_id):
     sprint = Sprint.query.get_or_404(sprint_id)
     if not _check_project_access(sprint.project):
         return jsonify({'error': '无权访问'}), 403
-    data = request.get_json()
-    requirement_ids = data.get('requirement_ids', [])
+    data = request.get_json(silent=True) or {}
+    raw_requirement_ids = data.get('requirement_ids', [])
+    if not isinstance(raw_requirement_ids, list):
+        return jsonify({'error': 'requirement_ids 必须是数组'}), 400
+    delete_unbound_tasks = data.get('delete_unbound_tasks', False)
+    if not isinstance(delete_unbound_tasks, bool):
+        return jsonify({'error': 'delete_unbound_tasks 必须是布尔值'}), 400
     try:
-        requirement_ids = [
-            parse_nullable_int(req_id, 'requirement_id')
-            for req_id in requirement_ids
-            if req_id not in (None, '')
-        ]
+        requirement_ids = {
+            parse_int(req_id, 'requirement_id') for req_id in raw_requirement_ids
+        }
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
-    Requirement.query.filter_by(sprint_id=sprint_id).update({'sprint_id': None})
+
+    selected_requirements = []
+    if requirement_ids:
+        selected_requirements = Requirement.query.filter(
+            Requirement.id.in_(requirement_ids)
+        ).all()
+        if len(selected_requirements) != len(requirement_ids):
+            return jsonify({'error': '部分需求不存在'}), 400
+        if any(requirement.project_id != sprint.project_id for requirement in selected_requirements):
+            return jsonify({'error': '部分需求不属于当前项目'}), 400
+        occupied = [
+            requirement for requirement in selected_requirements
+            if requirement.sprint_id not in (None, sprint.id)
+        ]
+        if occupied:
+            return jsonify({'error': '部分需求已被其他迭代绑定，请重新选择'}), 409
+
+    current_requirement_ids = {
+        requirement.id for requirement in Requirement.query.filter_by(sprint_id=sprint_id).all()
+    }
+    removed_requirement_ids = current_requirement_ids - requirement_ids
+    deleted_issue_count = 0
+    if delete_unbound_tasks and removed_requirement_ids:
+        issue_ids = [
+            issue_id for (issue_id,) in db.session.query(Issue.id).filter(
+                Issue.sprint_id == sprint_id,
+                Issue.requirement_id.in_(removed_requirement_ids),
+            ).all()
+        ]
+        if issue_ids:
+            WorkLog.query.filter(WorkLog.issue_id.in_(issue_ids)).delete(synchronize_session=False)
+            deleted_issue_count = Issue.query.filter(Issue.id.in_(issue_ids)).delete(
+                synchronize_session=False
+            )
+
+    Requirement.query.filter_by(sprint_id=sprint_id).update(
+        {'sprint_id': None}, synchronize_session=False
+    )
     if requirement_ids:
         Requirement.query.filter(Requirement.id.in_(requirement_ids)).update(
             {'sprint_id': sprint_id, 'status': 'in_progress'}, synchronize_session=False
@@ -190,7 +237,8 @@ def update_sprint_requirements(sprint_id):
     requirements = Requirement.query.filter_by(sprint_id=sprint_id).all()
     return jsonify({
         'sprint': sprint.to_dict(),
-        'requirements': [r.to_dict() for r in requirements]
+        'requirements': [r.to_dict() for r in requirements],
+        'deleted_issue_count': deleted_issue_count,
     })
 
 
@@ -237,7 +285,8 @@ def get_board(project_id):
         status_map = {
             'open': 'todo',
             'in_progress': 'doing',
-            'resolved': 'done',
+            'fixed': 'doing',
+            'resolved': 'doing',  # historical value before “已解决” was renamed
             'closed': 'done',
             'rejected': 'done'
         }

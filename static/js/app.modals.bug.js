@@ -16,6 +16,64 @@
         return normalized.startsWith('/static/') ? normalized : '#';
     }
 
+    // Bug 字典字段（需与后端 models.py 中 BUG_TYPE_LABELS 等保持一致）
+    const BUG_TYPE_LABELS = {
+        functional: '功能问题',
+        performance: '性能问题',
+        api: '接口问题',
+        security: '安全问题',
+        ui: 'UI 问题',
+        compatibility: '兼容性问题',
+        usability: '易用性问题',
+        config: '配置问题',
+        data: '数据问题',
+        requirement: '需求问题',
+    };
+    const PRIORITY_LABELS = {
+        critical: '最高',
+        high: '较高',
+        normal: '普通',
+        low: '较低',
+        lowest: '最低',
+    };
+    const PLATFORM_LABELS = {
+        server: '服务端',
+        h5: 'H5',
+        android: 'Android',
+        ios: 'IOS',
+        harmony: '鸿蒙',
+        pc_web: 'PCWeb端',
+    };
+    const DISCOVERY_PHASE_LABELS = {
+        smoke: '冒烟测试',
+        round_1: '第一轮测试',
+        round_2: '第二轮测试',
+        regression: '回归测试',
+        acceptance: '验收阶段',
+        integration: '组件（服务）集成测试阶段',
+        gray: '灰度阶段',
+        production: '线上阶段',
+    };
+    const DISCOVERY_CHANNEL_LABELS = {
+        user_feedback: '用户反馈',
+        monitoring: '监控工具',
+        log: '日志',
+        sprint: '迭代发现',
+    };
+
+    function renderSelectOptions(labels, selectedValue, { placeholder = '' } = {}) {
+        let html = placeholder !== null ? `<option value="">${escapeHtml(placeholder)}</option>` : '';
+        for (const [value, label] of Object.entries(labels)) {
+            const sel = String(selectedValue) === value ? 'selected' : '';
+            html += `<option value="${value}" ${sel}>${escapeHtml(label)}</option>`;
+        }
+        return html;
+    }
+
+    function labelOf(labels, value, fallback = '-') {
+        return labels[value] ?? fallback;
+    }
+
     const DEFAULT_BUG_STEPS_TEMPLATE = `【复现环境】
 浏览器/系统：
 账号：
@@ -52,6 +110,59 @@
             bodyClass: 'p-6',
             showResizeHint: true
         });
+    }
+
+    const CARD_ITEM_MODAL_OPTIONS = {
+        contentClass: 'w-full',
+        contentStyle: 'width:min(94vw, 38.4rem); max-width:min(94vw, 38.4rem); height:min(90vh, 56rem); max-height:90vh; overflow:hidden',
+        frameStyle: 'height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden',
+        bodyStyle: 'flex:1 1 auto; min-height:0; overflow-y:auto'
+    };
+
+    const BUG_FIXED_FOOTER_STYLE = 'flex:0 0 auto; padding:0.875rem 1.5rem; background:rgba(255,255,255,0.98); backdrop-filter:blur(8px); box-shadow:0 -1px 0 rgba(148,163,184,0.22), 0 -8px 24px rgba(15,23,42,0.05);';
+
+    function bugViewModalOptions() {
+        return {
+            ...CARD_ITEM_MODAL_OPTIONS,
+            footerHtml: `
+                <div data-testid="view-bug-fixed-footer" style="${BUG_FIXED_FOOTER_STYLE}" class="flex items-center justify-end gap-3">
+                    <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-sm font-semibold rounded-lg transition-colors">关闭</button>
+                </div>
+            `
+        };
+    }
+
+    function bugEditModalOptions(bugId, initialTab = 'details') {
+        return {
+            ...CARD_ITEM_MODAL_OPTIONS,
+            footerHtml: `
+                <div data-testid="edit-bug-fixed-footer" style="${BUG_FIXED_FOOTER_STYLE}" class="flex items-center justify-end">
+                    <div id="bug-edit-details-footer" style="display:${initialTab === 'time' ? 'none' : 'flex'}" class="items-center justify-end gap-3">
+                        <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-sm font-semibold rounded-lg transition-colors">取消</button>
+                        <button type="submit" form="edit-bug-form-${bugId}" class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-colors">
+                            <i class="fa-solid fa-save mr-2"></i>保存更改
+                        </button>
+                    </div>
+                    <div id="bug-edit-time-footer" style="display:${initialTab === 'time' ? 'flex' : 'none'}" class="items-center justify-end gap-3">
+                        <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-sm font-semibold rounded-lg transition-colors">关闭</button>
+                    </div>
+                </div>
+            `
+        };
+    }
+
+    function bugEvidenceModalOptions(bugId) {
+        return {
+            ...CARD_ITEM_MODAL_OPTIONS,
+            footerHtml: `
+                <div data-testid="bug-evidence-fixed-footer" style="${BUG_FIXED_FOOTER_STYLE}" class="flex items-center justify-end gap-3">
+                    <button type="button" onclick="app.modals.viewBug(${bugId})" class="px-5 py-2.5 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-sm font-semibold rounded-lg transition-colors">返回详情</button>
+                    <button type="submit" form="add-bug-evidence-form-${bugId}" data-testid="add-bug-evidence-submit-button" style="background:#ea580c;color:#fff" class="px-6 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 transition-colors">
+                        <i class="fa-solid fa-camera mr-2"></i>提交证据
+                    </button>
+                </div>
+            `
+        };
     }
 
     function renderEvidenceTimeline(evidences) {
@@ -165,9 +276,41 @@
                                 <select name="status" class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
                                     <option value="open" selected>待处理</option>
                                     <option value="in_progress">处理中</option>
-                                    <option value="resolved">已解决</option>
-                                    <option value="closed">已关闭</option>
+                                    <option value="fixed">已修复</option>
+                                    <option value="closed">已验证</option>
                                     <option value="rejected">已拒绝</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">缺陷类型 <span class="text-red-500">*</span></label>
+                                <select name="bug_type" required class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
+                                    ${renderSelectOptions(BUG_TYPE_LABELS, '', { placeholder: '请选择' })}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">优先级 <span class="text-red-500">*</span></label>
+                                <select name="priority" required class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
+                                    ${renderSelectOptions(PRIORITY_LABELS, '', { placeholder: '请选择' })}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">缺陷平台 <span class="text-red-500">*</span></label>
+                                <select name="platform" required class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
+                                    ${renderSelectOptions(PLATFORM_LABELS, '', { placeholder: '请选择' })}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">发现阶段 <span class="text-red-500">*</span></label>
+                                <select name="discovery_phase" required class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
+                                    ${renderSelectOptions(DISCOVERY_PHASE_LABELS, '', { placeholder: '请选择' })}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">发现渠道</label>
+                                <select name="discovery_channel" class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
+                                    ${renderSelectOptions(DISCOVERY_CHANNEL_LABELS, '', { placeholder: '请选择（可选）' })}
                                 </select>
                             </div>
                         </div>
@@ -248,14 +391,16 @@
         const statusLabels = {
             'open': '待处理',
             'in_progress': '处理中',
-            'resolved': '已解决',
-            'closed': '已关闭',
+            'fixed': '已修复',
+            'resolved': '已修复',
+            'closed': '已验证',
             'rejected': '已拒绝'
         };
 
         const statusColors = {
             'open': 'bg-red-100 text-red-700',
             'in_progress': 'bg-purple-100 text-purple-700',
+            'fixed': 'bg-blue-100 text-blue-700',
             'resolved': 'bg-blue-100 text-blue-700',
             'closed': 'bg-emerald-100 text-emerald-700',
             'rejected': 'bg-gray-100 text-gray-700'
@@ -289,7 +434,7 @@
         const safeRequirementTitle = escapeHtml(bug.requirement_title || '');
 
         this.modalShow(`
-            <div class="max-h-[75vh] overflow-y-auto pr-1">
+            <div class="pr-1">
                 <div class="mb-6">
                     <div class="flex items-start justify-between mb-3">
                         <h3 class="text-2xl font-bold text-gray-900 flex-1" data-testid="bug-detail-title">${safeTitle}</h3>
@@ -315,6 +460,31 @@
                 </div>
 
                 <div class="space-y-5">
+                    <div class="bg-white rounded-xl p-4 border border-gray-200">
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3 text-sm">
+                            <div>
+                                <div class="text-xs text-gray-500 mb-0.5">缺陷类型</div>
+                                <div class="font-medium text-gray-900">${escapeHtml(labelOf(BUG_TYPE_LABELS, bug.bug_type))}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500 mb-0.5">优先级</div>
+                                <div class="font-medium text-gray-900">${escapeHtml(labelOf(PRIORITY_LABELS, bug.priority))}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500 mb-0.5">缺陷平台</div>
+                                <div class="font-medium text-gray-900">${escapeHtml(labelOf(PLATFORM_LABELS, bug.platform))}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500 mb-0.5">发现阶段</div>
+                                <div class="font-medium text-gray-900">${escapeHtml(labelOf(DISCOVERY_PHASE_LABELS, bug.discovery_phase))}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500 mb-0.5">发现渠道</div>
+                                <div class="font-medium text-gray-900">${bug.discovery_channel ? escapeHtml(labelOf(DISCOVERY_CHANNEL_LABELS, bug.discovery_channel)) : '<span class="text-gray-400">未填写</span>'}</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="bg-gray-50 rounded-xl p-5 border border-gray-200">
                         <h4 class="text-sm font-bold text-gray-700 mb-2">缺陷描述</h4>
                         <p class="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">${safeDescription}</p>
@@ -396,11 +566,8 @@
                     </div>
                 </div>
 
-                <div class="flex justify-end gap-3 pt-6 border-t border-gray-100 mt-6">
-                    <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 text-gray-700 hover:text-gray-900 text-sm font-semibold hover:bg-gray-100 rounded-lg transition-colors">关闭</button>
-                </div>
             </div>
-        `);
+        `, bugViewModalOptions());
     };
 
     MiniAgile.modals.modalEditBug = async function(bugId, initialTab = 'details') {
@@ -446,13 +613,13 @@
 
                 <!-- Tabs -->
                 <div class="flex border-b border-gray-200 mb-6" id="bug-edit-tabs">
-                    <button onclick="document.getElementById('bug-tab-details').classList.remove('hidden'); document.getElementById('bug-tab-time').classList.add('hidden'); this.classList.add('border-red-500', 'text-red-600'); this.classList.remove('text-gray-500', 'border-transparent'); this.nextElementSibling.classList.remove('border-red-500', 'text-red-600'); this.nextElementSibling.classList.add('text-gray-500', 'border-transparent');" class="px-4 py-2 text-sm font-medium ${initialTab === 'time' ? 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent' : 'text-red-600 border-b-2 border-red-500'} focus:outline-none transition-colors">详情</button>
-                    <button onclick="document.getElementById('bug-tab-time').classList.remove('hidden'); document.getElementById('bug-tab-details').classList.add('hidden'); this.classList.add('border-red-500', 'text-red-600'); this.classList.remove('text-gray-500', 'border-transparent'); this.previousElementSibling.classList.remove('border-red-500', 'text-red-600'); this.previousElementSibling.classList.add('text-gray-500', 'border-transparent');" class="px-4 py-2 text-sm font-medium ${initialTab === 'time' ? 'text-red-600 border-b-2 border-red-500' : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'} focus:outline-none transition-colors">工时</button>
+                    <button onclick="document.getElementById('bug-tab-details').classList.remove('hidden'); document.getElementById('bug-tab-time').classList.add('hidden'); document.getElementById('bug-edit-details-footer').style.display='flex'; document.getElementById('bug-edit-time-footer').style.display='none'; this.classList.add('border-red-500', 'text-red-600'); this.classList.remove('text-gray-500', 'border-transparent'); this.nextElementSibling.classList.remove('border-red-500', 'text-red-600'); this.nextElementSibling.classList.add('text-gray-500', 'border-transparent');" class="px-4 py-2 text-sm font-medium ${initialTab === 'time' ? 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent' : 'text-red-600 border-b-2 border-red-500'} focus:outline-none transition-colors">详情</button>
+                    <button onclick="document.getElementById('bug-tab-time').classList.remove('hidden'); document.getElementById('bug-tab-details').classList.add('hidden'); document.getElementById('bug-edit-details-footer').style.display='none'; document.getElementById('bug-edit-time-footer').style.display='flex'; this.classList.add('border-red-500', 'text-red-600'); this.classList.remove('text-gray-500', 'border-transparent'); this.previousElementSibling.classList.remove('border-red-500', 'text-red-600'); this.previousElementSibling.classList.add('text-gray-500', 'border-transparent');" class="px-4 py-2 text-sm font-medium ${initialTab === 'time' ? 'text-red-600 border-b-2 border-red-500' : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'} focus:outline-none transition-colors">工时</button>
                 </div>
 
                 <!-- Details Tab -->
                 <div id="bug-tab-details" class="${initialTab === 'time' ? 'hidden' : ''}">
-                    <form onsubmit="app.handlers.updateBug(event, ${bug.id})" class="space-y-5">
+                    <form id="edit-bug-form-${bug.id}" onsubmit="app.handlers.updateBug(event, ${bug.id})" class="space-y-5">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">缺陷标题</label>
                             <input name="title" value="${safeTitle}" required class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm">
@@ -477,9 +644,41 @@
                                 <select name="status" class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
                                     <option value="open" ${bug.status === 'open' ? 'selected' : ''}>待处理</option>
                                     <option value="in_progress" ${bug.status === 'in_progress' ? 'selected' : ''}>处理中</option>
-                                    <option value="resolved" ${bug.status === 'resolved' ? 'selected' : ''}>已解决</option>
-                                    <option value="closed" ${bug.status === 'closed' ? 'selected' : ''}>已关闭</option>
+                                    <option value="fixed" ${bug.status === 'fixed' || bug.status === 'resolved' ? 'selected' : ''}>已修复</option>
+                                    <option value="closed" ${bug.status === 'closed' ? 'selected' : ''}>已验证</option>
                                     <option value="rejected" ${bug.status === 'rejected' ? 'selected' : ''}>已拒绝</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">缺陷类型 <span class="text-red-500">*</span></label>
+                                <select name="bug_type" required class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
+                                    ${renderSelectOptions(BUG_TYPE_LABELS, bug.bug_type || '', { placeholder: '请选择' })}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">优先级 <span class="text-red-500">*</span></label>
+                                <select name="priority" required class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
+                                    ${renderSelectOptions(PRIORITY_LABELS, bug.priority || '', { placeholder: '请选择' })}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">缺陷平台 <span class="text-red-500">*</span></label>
+                                <select name="platform" required class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
+                                    ${renderSelectOptions(PLATFORM_LABELS, bug.platform || '', { placeholder: '请选择' })}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">发现阶段 <span class="text-red-500">*</span></label>
+                                <select name="discovery_phase" required class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
+                                    ${renderSelectOptions(DISCOVERY_PHASE_LABELS, bug.discovery_phase || '', { placeholder: '请选择' })}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">发现渠道</label>
+                                <select name="discovery_channel" class="block w-full rounded-xl border-2 border-gray-200 focus:border-red-500 focus:ring-0 py-2.5 px-4 text-sm bg-white">
+                                    ${renderSelectOptions(DISCOVERY_CHANNEL_LABELS, bug.discovery_channel || '', { placeholder: '请选择（可选）' })}
                                 </select>
                             </div>
                         </div>
@@ -537,12 +736,6 @@
                                 <p class="mt-2 text-xs text-gray-500">一期仅支持图片，最多 5 张，建议单张控制在 5MB 内</p>
                             </div>
                         </div>
-                        <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                            <button type="button" onclick="app.modals.close()" class="px-5 py-2.5 text-gray-700 hover:text-gray-900 text-sm font-semibold hover:bg-gray-100 rounded-lg transition-colors">取消</button>
-                            <button type="submit" class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow-lg shadow-red-500/30 transition-all hover:scale-105">
-                                <i class="fa-solid fa-save mr-2"></i>保存更改
-                            </button>
-                        </div>
                     </form>
                 </div>
 
@@ -590,7 +783,7 @@
                     </div>
                 </div>
             </div>
-        `);
+        `, bugEditModalOptions(bug.id, initialTab));
     };
 
     MiniAgile.modals.modalAddBugEvidence = async function(bugId) {
@@ -610,7 +803,7 @@
                 <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
                     当前缺陷：<span class="font-semibold text-gray-900">${escapeHtml(bug.title)}</span>
                 </div>
-                <form data-testid="add-bug-evidence-form" onsubmit="app.handlers.submitBugEvidence(event, ${bug.id})" class="space-y-4">
+                <form id="add-bug-evidence-form-${bug.id}" data-testid="add-bug-evidence-form" onsubmit="app.handlers.submitBugEvidence(event, ${bug.id})" class="space-y-4">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">补充说明</label>
                         <textarea name="comment" data-testid="add-bug-evidence-comment-input" rows="3" class="block w-full rounded-xl border-2 border-orange-200 bg-white focus:border-orange-400 focus:ring-0 py-3 px-4 text-sm resize-none" placeholder="例如：切换为 Firefox 后同样复现"></textarea>
@@ -624,15 +817,9 @@
                         <input type="file" name="screenshots" data-testid="add-bug-evidence-file-input" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" multiple class="block w-full rounded-xl border-2 border-dashed border-orange-200 bg-white px-4 py-3 text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-orange-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-orange-700 hover:file:bg-orange-200">
                         <p class="mt-2 text-xs text-gray-500">可只补充说明，也可只贴堆栈或截图；留空则不会提交成功</p>
                     </div>
-                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                        <button type="button" onclick="app.modals.viewBug(${bug.id})" class="px-5 py-2.5 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 text-sm font-semibold rounded-lg transition-colors">返回详情</button>
-                        <button type="submit" data-testid="add-bug-evidence-submit-button" style="background:#ea580c;color:#fff" class="px-6 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 transition-colors">
-                            <i class="fa-solid fa-camera mr-2"></i>提交证据
-                        </button>
-                    </div>
                 </form>
             </div>
-        `);
+        `, bugEvidenceModalOptions(bug.id));
     };
 
 })();

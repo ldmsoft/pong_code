@@ -6,11 +6,14 @@
             this.modalOptions = {
                 contentClass: options.contentClass || '',
                 contentStyle: options.contentStyle || '',
+                frameStyle: options.frameStyle || '',
                 bodyClass: options.bodyClass || '',
+                bodyStyle: options.bodyStyle || '',
+                footerHtml: options.footerHtml || '',
                 showResizeHint: !!options.showResizeHint
             };
             this.modalHtml = `
-                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-purple-50 to-white">
+                <div class="px-6 py-4 border-b border-gray-200 flex shrink-0 justify-between items-center bg-gradient-to-r from-purple-50 to-white">
                      <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
                             <i class="fa-solid fa-bolt text-white text-sm"></i>
@@ -26,9 +29,10 @@
                     可拖动右下角调整弹窗大小
                 </div>
                 ` : ''}
-                <div class="${this.modalOptions.bodyClass || 'p-6'}">
+                <div class="${this.modalOptions.bodyClass || 'p-6'}" style="${this.modalOptions.bodyStyle || ''}">
                     ${html}
                 </div>
+                ${this.modalOptions.footerHtml || ''}
             `;
             this.showModal = true;
         };
@@ -39,7 +43,10 @@
             this.modalOptions = {
                 contentClass: '',
                 contentStyle: '',
+                frameStyle: '',
                 bodyClass: '',
+                bodyStyle: '',
+                footerHtml: '',
                 showResizeHint: false
             };
         };

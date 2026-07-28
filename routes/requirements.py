@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import current_user, login_required
 
 from extensions import db
-from models import Requirement, Project, organization_members
+from models import Bug, Issue, Project, Requirement, Sprint, WorkLog, organization_members
 from routes.input_utils import parse_nullable_int, parse_int, parse_date
 
 bp = Blueprint('requirements', __name__, url_prefix='/api')
@@ -31,6 +31,34 @@ def _check_org_admin(org):
         user_id=current_user.id, organization_id=org.id, role='admin'
     ).first() is not None
     return is_owner or is_admin
+
+
+def _parse_requirement_ids(data):
+    requirement_ids = data.get('requirement_ids') if isinstance(data, dict) else None
+    if not isinstance(requirement_ids, list) or not requirement_ids:
+        raise ValueError('请至少选择一个需求')
+    try:
+        parsed_ids = {parse_int(req_id, 'requirement_id') for req_id in requirement_ids}
+    except (TypeError, ValueError) as exc:
+        raise ValueError(str(exc)) from exc
+    return parsed_ids
+
+
+def _delete_requirements(requirements):
+    requirement_ids = [requirement.id for requirement in requirements]
+    issue_ids = [
+        row[0] for row in db.session.query(Issue.id).filter(
+            Issue.requirement_id.in_(requirement_ids)
+        )
+    ]
+    if issue_ids:
+        WorkLog.query.filter(WorkLog.issue_id.in_(issue_ids)).delete(synchronize_session=False)
+        Issue.query.filter(Issue.id.in_(issue_ids)).delete(synchronize_session=False)
+    Bug.query.filter(Bug.requirement_id.in_(requirement_ids)).update(
+        {'requirement_id': None}, synchronize_session=False
+    )
+    Requirement.query.filter(Requirement.id.in_(requirement_ids)).delete(synchronize_session=False)
+    return len(requirement_ids), len(issue_ids)
 
 
 @bp.route('/projects/<int:project_id>/requirements', methods=['GET'])
@@ -140,9 +168,82 @@ def delete_requirement(req_id):
     org = requirement.project.organization
     if not _check_org_admin(org):
         return jsonify({'error': '无权访问'}), 403
-    db.session.delete(requirement)
+    try:
+        deleted_count, deleted_issue_count = _delete_requirements([requirement])
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': '删除需求失败，请重试'}), 500
+    return jsonify({
+        'success': True,
+        'deleted_count': deleted_count,
+        'deleted_issue_count': deleted_issue_count,
+    })
+
+
+@bp.route('/projects/<int:project_id>/requirements/batch-delete', methods=['POST'])
+@login_required
+def batch_delete_requirements(project_id):
+    project = Project.query.get_or_404(project_id)
+    if not _check_org_admin(project.organization):
+        return jsonify({'error': '无权删除需求'}), 403
+    try:
+        requirement_ids = _parse_requirement_ids(request.get_json(silent=True) or {})
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    requirements = Requirement.query.filter(
+        Requirement.project_id == project_id,
+        Requirement.id.in_(requirement_ids),
+    ).all()
+    if len(requirements) != len(requirement_ids):
+        return jsonify({'error': '部分需求不存在或不属于当前项目'}), 400
+
+    try:
+        deleted_count, deleted_issue_count = _delete_requirements(requirements)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': '批量删除需求失败，请重试'}), 500
+    return jsonify({
+        'success': True,
+        'deleted_count': deleted_count,
+        'deleted_issue_count': deleted_issue_count,
+    })
+
+
+@bp.route('/projects/<int:project_id>/requirements/batch-bind-sprint', methods=['POST'])
+@login_required
+def batch_bind_requirements_to_sprint(project_id):
+    project = Project.query.get_or_404(project_id)
+    if not _check_project_access(project):
+        return jsonify({'error': '无权访问'}), 403
+    data = request.get_json(silent=True) or {}
+    try:
+        requirement_ids = _parse_requirement_ids(data)
+        sprint_id = parse_int(data.get('sprint_id'), 'sprint_id')
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    sprint = Sprint.query.filter_by(id=sprint_id, project_id=project_id).first()
+    if not sprint:
+        return jsonify({'error': '迭代不存在或不属于当前项目'}), 400
+    requirements = Requirement.query.filter(
+        Requirement.project_id == project_id,
+        Requirement.id.in_(requirement_ids),
+    ).all()
+    if len(requirements) != len(requirement_ids):
+        return jsonify({'error': '部分需求不存在或不属于当前项目'}), 400
+
+    Requirement.query.filter(Requirement.id.in_(requirement_ids)).update(
+        {'sprint_id': sprint.id, 'status': 'in_progress'}, synchronize_session=False
+    )
     db.session.commit()
-    return jsonify({'success': True})
+    return jsonify({
+        'success': True,
+        'updated_count': len(requirement_ids),
+        'sprint': sprint.to_dict(),
+    })
 
 
 @bp.route('/projects/<int:project_id>/requirements/stats', methods=['GET'])

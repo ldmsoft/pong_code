@@ -18,7 +18,10 @@
                 modalOptions: {
                     contentClass: '',
                     contentStyle: '',
+                    frameStyle: '',
                     bodyClass: '',
+                    bodyStyle: '',
+                    footerHtml: '',
                     showResizeHint: false
                 },
                 showModal: false,
@@ -401,7 +404,6 @@
                             <!-- Notifications -->
                             <button class="relative w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 hover:text-gray-900 transition-all">
                                 <i class="fa-solid fa-bell text-sm"></i>
-                                <span class="absolute -top-1 -right-1 w-4 h-4 bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">3</span>
                             </button>
 
                             <!-- User Menu -->
@@ -728,6 +730,7 @@
                 updateSprint: this.handlersUpdateSprint.bind(this),
                 deleteSprint: this.handlersDeleteSprint.bind(this),
                 updateSprintRequirements: this.handlersUpdateSprintRequirements.bind(this),
+                updateBoardSprintRequirements: this.handlersUpdateBoardSprintRequirements.bind(this),
                 submitSprintWorkLog: this.handlersSubmitSprintWorkLog.bind(this),
                 submitIssue: this.handlersSubmitIssue.bind(this),
                 submitWorkItem: this.handlersSubmitWorkItem.bind(this),
@@ -740,6 +743,8 @@
                 createRequirement: this.handlersCreateRequirement.bind(this),
                 updateRequirement: this.handlersUpdateRequirement.bind(this),
                 deleteRequirement: this.handlersDeleteRequirement.bind(this),
+                batchDeleteRequirements: this.handlersBatchDeleteRequirements.bind(this),
+                batchBindRequirements: this.handlersBatchBindRequirements.bind(this),
                 submitTeam: this.handlersSubmitTeam.bind(this),
                 joinTeam: this.handlersJoinTeam.bind(this),
                 leaveTeam: this.handlersLeaveTeam.bind(this),
@@ -761,11 +766,13 @@
                 editProject: this.modalEditProject.bind(this),
                 createSprint: this.modalCreateSprint.bind(this),
                 editSprint: this.modalEditSprint.bind(this),
+                bindBoardRequirements: this.modalBindBoardRequirements.bind(this),
                 createIssue: this.modalCreateIssue.bind(this),
                 editIssue: this.modalEditIssue.bind(this),
                 createRequirement: this.modalCreateRequirement.bind(this),
                 viewRequirement: this.modalViewRequirement.bind(this),
                 editRequirement: this.modalEditRequirement.bind(this),
+                batchBindRequirementSprint: this.modalBatchBindRequirementSprint.bind(this),
                 createTeam: this.modalCreateTeam.bind(this),
                 addTeamMember: this.modalAddTeamMember.bind(this),
                 selectOrgForTeams: this.modalSelectOrgForTeams.bind(this),
